@@ -27,8 +27,19 @@ export const predictImage = async (imageFile: File): Promise<PredictionResult> =
     let predictionData = "";
     let confidence: number | undefined = undefined;
     
-    // Handle the specific JSON format: { "result": "dog", "confidence": 99.81 }
-    if (result.data && typeof result.data === 'object') {
+    // Handle the array response format: [{ "result": "dog", "confidence": 99.81 }]
+    if (Array.isArray(result.data) && result.data.length > 0) {
+      const data = result.data[0];
+      
+      if (data.result && typeof data.result === 'string') {
+        predictionData = data.result;
+      }
+      
+      if (data.confidence && typeof data.confidence === 'number') {
+        confidence = data.confidence / 100; // Convert percentage to decimal for consistency
+      }
+    } else if (result.data && typeof result.data === 'object') {
+      // Fallback for direct object response
       const data = result.data as Record<string, any>;
       
       if ('result' in data && typeof data.result === 'string') {
@@ -36,14 +47,11 @@ export const predictImage = async (imageFile: File): Promise<PredictionResult> =
       }
       
       if ('confidence' in data && typeof data.confidence === 'number') {
-        confidence = data.confidence / 100; // Convert percentage to decimal for consistency
+        confidence = data.confidence / 100;
       }
     } else if (typeof result.data === 'string') {
       // Fallback if result is directly a string
       predictionData = result.data;
-    } else {
-      // Last resort fallback
-      predictionData = String(result.data);
     }
     
     return {
