@@ -23,9 +23,39 @@ export const predictImage = async (imageFile: File): Promise<PredictionResult> =
     
     console.log("Prediction result:", result.data);
     
-    // Parse the result - assuming the model returns something like "cat" or "dog"
+    // Type check and parse the result
+    let predictionData = "";
+    let confidence: number | undefined = undefined;
+    
+    // Handle different possible formats of the result data
+    if (result.data && typeof result.data === 'object') {
+      // If result.data is an object that might contain prediction details
+      const data = result.data as Record<string, any>;
+      
+      // Check if there's a specific prediction field (adjust based on actual API response)
+      if ('prediction' in data && typeof data.prediction === 'string') {
+        predictionData = data.prediction;
+      } else if ('label' in data && typeof data.label === 'string') {
+        predictionData = data.label;
+      }
+      
+      // Check for confidence value
+      if ('confidence' in data && typeof data.confidence === 'number') {
+        confidence = data.confidence;
+      } else if ('probability' in data && typeof data.probability === 'number') {
+        confidence = data.probability;
+      }
+    } else if (typeof result.data === 'string') {
+      // If result is directly a string (e.g., "cat" or "dog")
+      predictionData = result.data;
+    } else {
+      // Try to convert to string as fallback
+      predictionData = String(result.data);
+    }
+    
     return {
-      data: result.data,
+      data: predictionData,
+      confidence: confidence,
       success: true
     };
   } catch (error) {
