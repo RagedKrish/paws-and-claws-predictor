@@ -18,10 +18,12 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 }) => {
   const [preview, setPreview] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback((file: File) => {
-    // Validate if it's an image
     if (!file.type.startsWith('image/')) {
       alert('Please upload an image file');
       return;
@@ -36,7 +38,6 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
   }, [onImageSelected]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault();
     if (e.target.files && e.target.files[0]) {
       handleFile(e.target.files[0]);
     }
@@ -45,11 +46,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
+    setDragActive(e.type === 'dragenter' || e.type === 'dragover');
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -61,13 +58,54 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     }
   };
 
-  const handleButtonClick = () => {
-    inputRef.current?.click();
-  };
+  const handleButtonClick = () => inputRef.current?.click();
 
   const handleClear = () => {
     setPreview(null);
     if (inputRef.current) inputRef.current.value = '';
+  };
+
+  const startCamera = async () => {
+    setShowCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      setShowCamera(false);
+    }
+  };
+
+  const takePhoto = () => {
+    if (videoRef.current && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      context?.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+      const imageDataUrl = canvas.toDataURL('image/png');
+      setPreview(imageDataUrl);
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], 'captured-image.png', { type: 'image/png' });
+          onImageSelected(file);
+        }
+      }, 'image/png');
+
+      stopCamera();
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      setShowCamera(false);
+    }
   };
 
   return (
@@ -92,7 +130,22 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
           disabled={isLoading}
         />
 
-        {preview ? (
+        {showCamera ? (
+          <div className="relative w-full max-w-md">
+            <video ref={videoRef} autoPlay className="border rounded-lg w-full"></video>
+            <canvas ref={canvasRef} className="hidden"></canvas>
+            <div className="mt-4 flex justify-between">
+              <Button variant="outline" onClick={stopCamera} disabled={isLoading}>
+                <X className="mr-2 h-4 w-4" />
+                Close Camera
+              </Button>
+              <Button onClick={takePhoto} disabled={isLoading}>
+                <Camera className="mr-2 h-4 w-4" />
+                Capture
+              </Button>
+            </div>
+          </div>
+        ) : preview ? (
           <div className="relative w-full max-w-md animate-scale-in">
             <div className="absolute top-2 right-2 z-10">
               <Button
@@ -138,7 +191,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
                 <Upload className="mr-2 h-4 w-4" />
                 Select Image
               </Button>
-              <Button variant="outline" onClick={handleButtonClick} disabled={isLoading}>
+              <Button variant="outline" onClick={startCamera} disabled={isLoading}>
                 <Camera className="mr-2 h-4 w-4" />
                 Take Photo
               </Button>
